@@ -1,37 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import CurrentTask from "../components/widgets/CurrentTask";
 import FeatureButtons from "../components/widgets/FeatureButtons";
 import AddSubjectModal from "../components/widgets/AddSubjectModal";
 
-function Home() {
-  const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
-  const navigate = useNavigate();
-
-  const handleFeatureAction = (label) => {
-    if (label === "Add Subject") {
-      setIsAddSubjectOpen(true);
-      return;
-    }
-
-    if (label === "Study Plan") {
-      navigate("/study-plan");
-      return;
-    }
-
-    if (label === "Deadlines") {
-      navigate("/deadlines");
-      return;
-    }
-
-    if (label === "Performance") {
-      navigate("/performance");
-      return;
-    }
-
-    console.log(`Navigate to ${label}`);
-  };
+function Dashboard({ isAddSubjectOpen, setIsAddSubjectOpen, onFeatureAction }) {
 
   return (
     <div>
