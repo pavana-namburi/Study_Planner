@@ -1,6 +1,11 @@
+require('dotenv').config();
 const mysql = require('mysql2');
 
-const DB_NAME = 'study_planner';
+const DB_NAME = process.env.DB_NAME;
+
+console.log("DB_HOST:", process.env.DB_HOST);
+console.log("DB_USER:", process.env.DB_USER);
+console.log("DB_PASSWORD:", process.env.DB_PASSWORD);
 
 function logSql(query, params) {
   if (params && params.length) {
@@ -9,6 +14,7 @@ function logSql(query, params) {
     console.log('Executing SQL:', query);
   }
 }
+
 
 function createTables(connection, callback) {
   console.log('Ensuring table subjects exists');
@@ -131,9 +137,9 @@ function createTables(connection, callback) {
 
 function initializeDatabase(callback) {
   const configWithoutDB = {
-    host: 'localhost',
-    user: 'root',
-    password: 'nopassword@123',
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
     multipleStatements: true,
   };
 
@@ -160,7 +166,7 @@ function initializeDatabase(callback) {
 
         const configWithDB = {
           ...configWithoutDB,
-          database: 'study_planner',
+          database: process.env.DB_NAME,
         };
         const connection2 = mysql.createConnection(configWithDB);
 
