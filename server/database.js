@@ -3,9 +3,6 @@ const mysql = require('mysql2');
 
 const DB_NAME = process.env.DB_NAME;
 
-console.log("DB_HOST:", process.env.DB_HOST);
-console.log("DB_USER:", process.env.DB_USER);
-console.log("DB_PASSWORD:", process.env.DB_PASSWORD);
 
 function logSql(query, params) {
   if (params && params.length) {
@@ -147,7 +144,7 @@ function initializeDatabase(callback) {
 
   connection.connect((err) => {
     if (err) {
-      console.error('Connection error:', err.message);
+      console.error('Connection error FULL:', err);
       return callback(err);
     }
     console.log('Connected to MySQL');
