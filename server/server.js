@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
+// node-fetch v3 is ESM-only — imported dynamically inside async route handlers
 const { initializeDatabase } = require('./database');
 
 // Verify Gemini API Key is loaded
@@ -470,7 +470,7 @@ app.get('/performance', (req, res) => {
   });
 });
 
-app.post('/chat', (req, res) => {
+app.post('/api/chat', async (req, res) => {
   console.log('CHAT HIT');
 
   const { message } = req.body;
@@ -483,10 +483,74 @@ app.post('/chat', (req, res) => {
 
   console.log('Message received:', message);
 
-  // Return test response
-  res.json({
-    reply: 'Test working'
-  });
+  // Check API key
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error('GEMINI_API_KEY is not set');
+    return res.status(500).json({ error: 'Gemini API key is not configured on the server.' });
+  }
+
+  try {
+    // Dynamic import for node-fetch v3 (ESM-only)
+    const { default: fetch } = await import('node-fetch');
+
+    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: `You are a helpful AI study assistant for a Study Planner app. Help the student with study tips, scheduling advice, motivation, and general academic questions. Be concise and friendly.\n\nStudent's message: ${message.trim()}`
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 1024,
+      }
+    };
+
+    const geminiResponse = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody),
+    });
+
+    const geminiData = await geminiResponse.json();
+
+    if (!geminiResponse.ok) {
+      console.error('Gemini API error:', geminiData);
+      const errorMsg = geminiData?.error?.message || 'Gemini API request failed';
+      return res.status(502).json({ error: errorMsg });
+    }
+
+    // Extract reply text from Gemini response
+    const reply =
+      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      'Sorry, I could not generate a response.';
+
+    console.log('Gemini reply:', reply.substring(0, 100) + '...');
+
+    // Save chat to MySQL (optional — non-blocking, won't fail the response)
+    const connection = req.app.locals.dbConnection;
+    if (connection) {
+      connection.query(
+        'INSERT INTO chats (message, response) VALUES (?, ?)',
+        [message.trim(), reply],
+        (err) => {
+          if (err) console.error('Failed to save chat to DB:', err.message);
+          else console.log('Chat saved to DB');
+        }
+      );
+    }
+
+    res.json({ reply });
+  } catch (error) {
+    console.error('Chat route error:', error);
+    res.status(500).json({ error: 'Failed to get response from AI. Please try again.' });
+  }
 });
 
 function startServer() {

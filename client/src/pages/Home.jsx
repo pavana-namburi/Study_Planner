@@ -30,6 +30,11 @@ function Home() {
       return;
     }
 
+    if (label === "AI Chatbot") {
+      navigate("/chatbot");
+      return;
+    }
+
     console.log(`Navigate to ${label}`);
   };
 
@@ -65,6 +70,7 @@ function Home() {
               type="button"
               className="primary-action-button"
               aria-label="Ask Gemini"
+              onClick={() => navigate('/chatbot')}
             >
               Ask Gemini
             </button>
