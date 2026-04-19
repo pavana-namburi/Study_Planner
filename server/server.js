@@ -1,14 +1,20 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-// node-fetch v3 is ESM-only — imported dynamically inside async route handlers
+// REMOVED: node-fetch dynamic import (no longer needed — using OpenAI SDK)
 const { initializeDatabase } = require('./database');
 
-// Verify Gemini API Key is loaded
-console.log('Gemini API Key:', process.env.GEMINI_API_KEY ? '✓ Loaded' : '✗ NOT SET - Please add GEMINI_API_KEY to .env file');
+// UPDATED: Verify OpenAI API Key is loaded
+console.log('OpenAI API Key:', process.env.OPENAI_API_KEY ? '✓ Loaded' : '✗ NOT SET - Please add OPENAI_API_KEY to .env file');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// UPDATED: OpenAI integration
+const OpenAI = require("openai");
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // Function to find an available port
 function findAvailablePort(startPort) {
@@ -470,6 +476,7 @@ app.get('/performance', (req, res) => {
   });
 });
 
+// UPDATED: OpenAI integration — replaces Gemini
 app.post('/api/chat', async (req, res) => {
   console.log('CHAT HIT');
 
@@ -483,55 +490,36 @@ app.post('/api/chat', async (req, res) => {
 
   console.log('Message received:', message);
 
-  // Check API key
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.error('GEMINI_API_KEY is not set');
-    return res.status(500).json({ error: 'Gemini API key is not configured on the server.' });
+  // UPDATED: Check OpenAI API key
+  if (!process.env.OPENAI_API_KEY) {
+    console.error('OPENAI_API_KEY is not set');
+    return res.status(500).json({ error: 'OpenAI API key is not configured on the server.' });
   }
 
   try {
-    // Dynamic import for node-fetch v3 (ESM-only)
-    const { default: fetch } = await import('node-fetch');
-
-    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
-    const requestBody = {
-      contents: [
+    // UPDATED: OpenAI chat completion
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
         {
-          parts: [
-            {
-              text: `You are a helpful AI study assistant for a Study Planner app. Help the student with study tips, scheduling advice, motivation, and general academic questions. Be concise and friendly.\n\nStudent's message: ${message.trim()}`
-            }
-          ]
+          role: 'system',
+          content: 'You are a helpful AI study assistant for a Study Planner app. Help the student with study tips, scheduling advice, motivation, and general academic questions. Be concise and friendly.'
+        },
+        {
+          role: 'user',
+          content: message.trim()
         }
       ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 1024,
-      }
-    };
-
-    const geminiResponse = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
+      temperature: 0.7,
+      max_tokens: 1024,
     });
 
-    const geminiData = await geminiResponse.json();
-
-    if (!geminiResponse.ok) {
-      console.error('Gemini API error:', geminiData);
-      const errorMsg = geminiData?.error?.message || 'Gemini API request failed';
-      return res.status(502).json({ error: errorMsg });
-    }
-
-    // Extract reply text from Gemini response
+    // UPDATED: Extract reply from OpenAI response
     const reply =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      completion.choices?.[0]?.message?.content ||
       'Sorry, I could not generate a response.';
 
-    console.log('Gemini reply:', reply.substring(0, 100) + '...');
+    console.log('OpenAI reply:', reply.substring(0, 100) + '...');
 
     // Save chat to MySQL (optional — non-blocking, won't fail the response)
     const connection = req.app.locals.dbConnection;
