@@ -62,7 +62,7 @@ function formatTimeRemaining(totalMinutes) {
 app.use(
   cors({
     origin: /^http:\/\/localhost:\d+$/,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   }),
 );
@@ -174,6 +174,166 @@ app.get('/api/subjects', (req, res) => {
 
     res.json(results);
   });
+});
+
+app.get('/api/current-task', (req, res) => {
+  const connection = req.app.locals.dbConnection;
+
+  if (!connection) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  const sql = `
+    SELECT
+      subjects.name AS subject,
+      subjects.priority,
+      subjects.difficulty,
+      subjects.deadline,
+      tasks.task_date,
+      tasks.start_time,
+      tasks.end_time,
+      tasks.status
+    FROM tasks
+    JOIN subjects ON tasks.subject_id = subjects.id
+    WHERE tasks.status <> 'completed'
+    ORDER BY
+      CASE subjects.priority
+        WHEN 'High' THEN 1
+        WHEN 'Medium' THEN 2
+        WHEN 'Low' THEN 3
+        ELSE 4
+      END,
+      tasks.task_date ASC,
+      tasks.start_time ASC
+    LIMIT 1
+  `;
+
+  connection.query(sql, (err, results) => {
+    if (err) {
+      console.error('Error fetching current task:', err);
+
+      if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
+        return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+      }
+
+      return res.status(500).json({ error: 'Failed to retrieve current task from database' });
+    }
+
+    if (!results || results.length === 0) {
+      return res.json({ task: null });
+    }
+
+    res.json({ task: results[0] });
+  });
+});
+
+app.get('/api/tasks', (req, res) => {
+  const connection = req.app.locals.dbConnection;
+
+  if (!connection) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  const sql = `
+    SELECT
+      tasks.id,
+      tasks.task_date,
+      tasks.start_time,
+      tasks.end_time,
+      tasks.status,
+      subjects.id AS subject_id,
+      subjects.name AS subject,
+      subjects.priority,
+      subjects.difficulty,
+      subjects.type
+    FROM tasks
+    JOIN subjects ON tasks.subject_id = subjects.id
+    ORDER BY tasks.task_date ASC, tasks.start_time ASC
+  `;
+
+  connection.query(sql, (err, results) => {
+    if (err) {
+      console.error('Error fetching tasks:', err);
+
+      if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
+        return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+      }
+
+      return res.status(500).json({ error: 'Failed to retrieve tasks from database' });
+    }
+
+    res.json(results);
+  });
+});
+
+app.patch('/api/tasks/:id/status', (req, res) => {
+  const connection = req.app.locals.dbConnection;
+
+  if (!connection) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  const taskId = Number(req.params.id);
+  const { status } = req.body;
+  const allowedStatuses = ['pending', 'completed', 'skipped', 'missed'];
+
+  if (!status || typeof status !== 'string' || !allowedStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Invalid task status' });
+  }
+
+  connection.query(
+    'UPDATE tasks SET status = ? WHERE id = ?',
+    [status, taskId],
+    (err, result) => {
+      if (err) {
+        console.error('Error updating task status:', err);
+
+        if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
+          return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+        }
+
+        return res.status(500).json({ error: 'Failed to update task status' });
+      }
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Task not found' });
+      }
+
+      res.json({ success: true, id: taskId, status });
+    }
+  );
+});
+
+app.delete('/api/tasks/:id', (req, res) => {
+  const connection = req.app.locals.dbConnection;
+
+  if (!connection) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  const taskId = Number(req.params.id);
+
+  connection.query(
+    'DELETE FROM tasks WHERE id = ?',
+    [taskId],
+    (err, result) => {
+      if (err) {
+        console.error('Error deleting task:', err);
+
+        if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
+          return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+        }
+
+        return res.status(500).json({ error: 'Failed to delete task' });
+      }
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: 'Task not found' });
+      }
+
+      res.json({ success: true, id: taskId });
+    }
+  );
 });
 
 app.get('/study-plan', (req, res) => {

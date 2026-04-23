@@ -4,7 +4,8 @@ function AddSubjectModal({ isOpen, onClose }) {
   const [subjectName, setSubjectName] = useState("");
   const [difficulty, setDifficulty] = useState("Medium");
   const [maxTime, setMaxTime] = useState(1);
-  const [deadline, setDeadline] = useState("");
+  const [deadlineDate, setDeadlineDate] = useState("");
+  const [deadlineTime, setDeadlineTime] = useState("");
   const [priority, setPriority] = useState("Medium");
   const [type, setType] = useState("Exam");
   const [confidence, setConfidence] = useState(3);
@@ -27,7 +28,8 @@ function AddSubjectModal({ isOpen, onClose }) {
       setSubjectName("");
       setDifficulty("Medium");
       setMaxTime(1);
-      setDeadline("");
+      setDeadlineDate("");
+      setDeadlineTime("");
       setPriority("Medium");
       setType("Exam");
       setConfidence(3);
@@ -41,6 +43,15 @@ function AddSubjectModal({ isOpen, onClose }) {
   const handleAddSubject = async (event) => {
     event.preventDefault();
 
+    // Validate that both date and time are provided
+    if (!deadlineDate || !deadlineTime) {
+      alert("Please provide both deadline date and time.");
+      return;
+    }
+
+    // Combine date and time into DATETIME format: "YYYY-MM-DD HH:MM:SS"
+    const deadline = `${deadlineDate} ${deadlineTime}:00`;
+
     const payload = {
       name: subjectName,
       difficulty,
@@ -52,37 +63,53 @@ function AddSubjectModal({ isOpen, onClose }) {
     };
 
     try {
-      const response = await fetch('/api/subjects', {
-        method: 'POST',
+      const response = await fetch("/api/subjects", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to add subject:', errorData.error || response.statusText);
+        console.error(
+          "Failed to add subject:",
+          errorData.error || response.statusText,
+        );
         return;
       }
 
       const result = await response.json();
-      console.log('Subject added successfully', result);
+      console.log("Subject added successfully", result);
       onClose();
     } catch (error) {
-      console.error('Error sending subject data:', error);
+      console.error("Error sending subject data:", error);
     }
   };
 
   return (
-    <div className="modal-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="add-subject-title">
+    <div
+      className="modal-overlay"
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <div
+        className="modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-subject-title"
+      >
         <div className="modal-header">
           <div>
             <p className="modal-kicker">New subject</p>
             <h2 id="add-subject-title">Add Subject</h2>
           </div>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Close add subject modal">
+          <button
+            type="button"
+            className="modal-close"
+            onClick={onClose}
+            aria-label="Close add subject modal"
+          >
             ×
           </button>
         </div>
@@ -131,22 +158,38 @@ function AddSubjectModal({ isOpen, onClose }) {
                 min="0.5"
                 step="0.5"
                 value={maxTime}
-                onChange={(event) => setMaxTime(parseFloat(event.target.value) || 0)}
+                onChange={(event) =>
+                  setMaxTime(parseFloat(event.target.value) || 0)
+                }
                 placeholder="1"
                 required
               />
             </div>
 
             <div className="form-field">
-              <label htmlFor="deadline" className="form-label">
-                Deadline
+              <label htmlFor="deadline-date" className="form-label">
+                Deadline Date
               </label>
               <input
-                id="deadline"
-                type="datetime-local"
+                id="deadline-date"
+                type="date"
                 className="form-input"
-                value={deadline}
-                onChange={(event) => setDeadline(event.target.value)}
+                value={deadlineDate}
+                onChange={(event) => setDeadlineDate(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="deadline-time" className="form-label">
+                Deadline Time
+              </label>
+              <input
+                id="deadline-time"
+                type="time"
+                className="form-input"
+                value={deadlineTime}
+                onChange={(event) => setDeadlineTime(event.target.value)}
                 required
               />
             </div>
@@ -196,7 +239,9 @@ function AddSubjectModal({ isOpen, onClose }) {
                   max="5"
                   step="1"
                   value={confidence}
-                  onChange={(event) => setConfidence(Number(event.target.value))}
+                  onChange={(event) =>
+                    setConfidence(Number(event.target.value))
+                  }
                 />
                 <span className="range-value">{confidence}</span>
               </div>
@@ -204,7 +249,11 @@ function AddSubjectModal({ isOpen, onClose }) {
           </div>
 
           <div className="modal-actions">
-            <button type="button" className="button-secondary" onClick={onClose}>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={onClose}
+            >
               Cancel
             </button>
             <button type="submit" className="button-primary">
