@@ -1,11 +1,14 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
+const Groq = require('groq-sdk');
 const { initializeDatabase } = require('./database');
 
-// Verify Gemini API Key is loaded
-console.log('Gemini API Key:', process.env.GEMINI_API_KEY ? '✓ Loaded' : '✗ NOT SET - Please add GEMINI_API_KEY to .env file');
+const groq = process.env.GROQ_API_KEY
+  ? new Groq({ apiKey: process.env.GROQ_API_KEY })
+  : null;
+
+console.log('Groq API Key:', process.env.GROQ_API_KEY ? 'Loaded' : 'NOT SET - Please add GROQ_API_KEY to .env file');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -630,23 +633,63 @@ app.get('/performance', (req, res) => {
   });
 });
 
-app.post('/chat', (req, res) => {
-  console.log('CHAT HIT');
-
+app.post('/chat', async (req, res) => {
   const { message } = req.body;
 
-  // Validate message
   if (!message || typeof message !== 'string' || message.trim() === '') {
-    console.log('Error: Message is empty or invalid');
-    return res.status(400).json({ error: 'Message is required and must be a non-empty string' });
+    return res.status(400).json({
+      success: false,
+      message: 'Message is required and must be a non-empty string',
+    });
   }
 
-  console.log('Message received:', message);
+  if (!groq) {
+    console.error('Chat service unavailable: GROQ_API_KEY is not configured');
+    return res.status(500).json({
+      success: false,
+      message: 'Chat service unavailable',
+    });
+  }
 
-  // Return test response
-  res.json({
-    reply: 'Test working'
-  });
+  try {
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a helpful AI study assistant inside a Study Planner app. Help with productivity, study plans, motivation, topic explanations, revision, and time management.',
+        },
+        {
+          role: 'user',
+          content: message.trim(),
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 700,
+    });
+
+    const reply = completion.choices?.[0]?.message?.content?.trim();
+
+    if (!reply) {
+      console.error('Chat service returned an empty response');
+      return res.status(500).json({
+        success: false,
+        message: 'Chat service unavailable',
+      });
+    }
+
+    res.json({
+      success: true,
+      reply,
+    });
+  } catch (error) {
+    console.error('Groq chat error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Chat service unavailable',
+    });
+  }
 });
 
 function startServer() {

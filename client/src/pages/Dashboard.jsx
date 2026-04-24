@@ -1,4 +1,3 @@
-import { useState } from "react";
 import Header from "../components/Header";
 import CurrentTask from "../components/widgets/CurrentTask";
 import FeatureButtons from "../components/widgets/FeatureButtons";
@@ -25,7 +24,7 @@ function Dashboard({ isAddSubjectOpen, setIsAddSubjectOpen, onFeatureAction }) {
             Study Dashboard
           </h1>
           <CurrentTask />
-          <FeatureButtons onAction={handleFeatureAction} />
+          <FeatureButtons onAction={onFeatureAction} />
           <div
             style={{
               marginTop: 48,
@@ -37,9 +36,10 @@ function Dashboard({ isAddSubjectOpen, setIsAddSubjectOpen, onFeatureAction }) {
             <button
               type="button"
               className="primary-action-button"
-              aria-label="Ask Gemini"
+              aria-label="Ask Study Assistant"
+              onClick={() => onFeatureAction?.("AI Chatbot")}
             >
-              Ask Gemini
+              Ask Study Assistant
             </button>
           </div>
           <AddSubjectModal
@@ -52,4 +52,4 @@ function Dashboard({ isAddSubjectOpen, setIsAddSubjectOpen, onFeatureAction }) {
   );
 }
 
-export default Home;
+export default Dashboard;

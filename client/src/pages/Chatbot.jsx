@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import api from '../services/api';
 
 const Chatbot = () => {
   const [messages, setMessages] = useState([]);
@@ -26,17 +27,10 @@ const Chatbot = () => {
     setMessages(prev => [...prev, { text: 'Typing...', sender: 'bot' }]);
 
     try {
-      const response = await fetch('http://localhost:5000/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: userMessage.text }),
-      });
+      const response = await api.post('/chat', { message: userMessage.text });
+      const data = response.data;
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (data.success && data.reply) {
         // Replace typing with actual reply
         setMessages(prev => {
           const newMessages = [...prev];
@@ -47,15 +41,16 @@ const Chatbot = () => {
         // Handle error
         setMessages(prev => {
           const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { text: `Error: ${data.error}`, sender: 'bot' };
+          newMessages[newMessages.length - 1] = { text: data.message || 'Chat service unavailable', sender: 'bot' };
           return newMessages;
         });
       }
     } catch (error) {
       console.error('Error calling chat API:', error);
+      const errorMessage = error.response?.data?.message || 'Sorry, something went wrong. Please try again.';
       setMessages(prev => {
         const newMessages = [...prev];
-        newMessages[newMessages.length - 1] = { text: 'Sorry, something went wrong. Please try again.', sender: 'bot' };
+        newMessages[newMessages.length - 1] = { text: errorMessage, sender: 'bot' };
         return newMessages;
       });
     } finally {
@@ -63,7 +58,7 @@ const Chatbot = () => {
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !loading) {
       handleSend();
     }
@@ -93,7 +88,7 @@ const Chatbot = () => {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           placeholder="Type your message..."
           style={styles.input}
           disabled={loading}
