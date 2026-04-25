@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const Groq = require('groq-sdk');
 const { initializeDatabase } = require('./database');
+const authRoutes = require('./routes/authRoutes');
 
 const groq = process.env.GROQ_API_KEY
   ? new Groq({ apiKey: process.env.GROQ_API_KEY })
@@ -70,6 +71,7 @@ app.use(
   }),
 );
 app.use(express.json());
+app.use('/api/auth', authRoutes);
 
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Server working' });

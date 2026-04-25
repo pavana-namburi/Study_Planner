@@ -14,53 +14,74 @@ function logSql(query, params) {
 
 
 function createTables(connection, callback) {
-  console.log('Ensuring table subjects exists');
-  const createSubjectsSql = `CREATE TABLE IF NOT EXISTS subjects (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    difficulty VARCHAR(20) NOT NULL,
-    max_time INT NOT NULL,
-    priority VARCHAR(20) NOT NULL,
-    \`type\` VARCHAR(20) NOT NULL,
-    confidence INT NOT NULL,
-    deadline DATETIME NOT NULL,
-    priority_score DECIMAL(6,2) NOT NULL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  ) ENGINE=InnoDB`;
-  logSql(createSubjectsSql);
-  connection.query(createSubjectsSql, (err) => {
-    if (err) return callback(err);
-    console.log('Table subjects ensured');
+  createUsers();
 
-    console.log('Checking subjects table columns...');
-    const requiredColumns = {
-      name: 'VARCHAR(255) NOT NULL',
-      difficulty: 'VARCHAR(20) NOT NULL',
-      max_time: 'INT NOT NULL',
-      deadline: 'DATETIME NOT NULL',
-      priority: 'VARCHAR(20) NOT NULL',
-      type: 'VARCHAR(20) NOT NULL',
-      confidence: 'INT NOT NULL',
-      priority_score: 'DECIMAL(6,2) NOT NULL DEFAULT 0',
-    };
-
-    const checkColumnsSql = 'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?';
-    logSql(checkColumnsSql, [DB_NAME, 'subjects']);
-    connection.query(checkColumnsSql, [DB_NAME, 'subjects'], (err, results) => {
+  function createUsers() {
+    console.log('Ensuring table users exists');
+    const createUsersSql = `CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100),
+      email VARCHAR(150) UNIQUE,
+      password VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB`;
+    logSql(createUsersSql);
+    connection.query(createUsersSql, (err) => {
       if (err) return callback(err);
-
-      const existingColumns = new Set((results || []).map((row) => row.COLUMN_NAME));
-      const missingColumns = Object.keys(requiredColumns).filter((column) => !existingColumns.has(column));
-
-      if (missingColumns.length === 0) {
-        console.log('All subjects columns exist');
-        createTasks();
-        return;
-      }
-
-      addMissingColumns(missingColumns, requiredColumns, connection, callback);
+      console.log('Table users ensured');
+      createSubjects();
     });
-  });
+  }
+
+  function createSubjects() {
+    console.log('Ensuring table subjects exists');
+    const createSubjectsSql = `CREATE TABLE IF NOT EXISTS subjects (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      difficulty VARCHAR(20) NOT NULL,
+      max_time INT NOT NULL,
+      priority VARCHAR(20) NOT NULL,
+      \`type\` VARCHAR(20) NOT NULL,
+      confidence INT NOT NULL,
+      deadline DATETIME NOT NULL,
+      priority_score DECIMAL(6,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB`;
+    logSql(createSubjectsSql);
+    connection.query(createSubjectsSql, (err) => {
+      if (err) return callback(err);
+      console.log('Table subjects ensured');
+
+      console.log('Checking subjects table columns...');
+      const requiredColumns = {
+        name: 'VARCHAR(255) NOT NULL',
+        difficulty: 'VARCHAR(20) NOT NULL',
+        max_time: 'INT NOT NULL',
+        deadline: 'DATETIME NOT NULL',
+        priority: 'VARCHAR(20) NOT NULL',
+        type: 'VARCHAR(20) NOT NULL',
+        confidence: 'INT NOT NULL',
+        priority_score: 'DECIMAL(6,2) NOT NULL DEFAULT 0',
+      };
+
+      const checkColumnsSql = 'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?';
+      logSql(checkColumnsSql, [DB_NAME, 'subjects']);
+      connection.query(checkColumnsSql, [DB_NAME, 'subjects'], (err, results) => {
+        if (err) return callback(err);
+
+        const existingColumns = new Set((results || []).map((row) => row.COLUMN_NAME));
+        const missingColumns = Object.keys(requiredColumns).filter((column) => !existingColumns.has(column));
+
+        if (missingColumns.length === 0) {
+          console.log('All subjects columns exist');
+          createTasks();
+          return;
+        }
+
+        addMissingColumns(missingColumns, requiredColumns, connection, callback);
+      });
+    });
+  }
 
   function addMissingColumns(missingColumns, columnDefinitions, connection, callback) {
     const next = missingColumns.shift();
