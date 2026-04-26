@@ -149,7 +149,7 @@ This project was built to simplify student productivity by combining planning sy
 
 ## 🔮 Future Improvements
 
-- User Authentication
+- User Authentication (currently working on this)
 - Personalized User Profiles
 - Chat History
 - Reminder Notifications
