@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Header from '../components/Header';
+import api from '../services/api';
 
 function StudyPlanPage() {
   const [plan, setPlan] = useState([]);
@@ -11,17 +12,11 @@ function StudyPlanPage() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('http://localhost:5000/study-plan');
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch study plan: ${response.statusText}`);
-        }
-
-        const data = await response.json();
+        const { data } = await api.get('/study-plan');
         setPlan(data);
       } catch (err) {
         console.error('Error fetching study plan:', err);
-        setError(err.message || 'Failed to load study plan');
+        setError(err.response?.data?.error || err.message || 'Failed to load study plan');
       } finally {
         setLoading(false);
       }

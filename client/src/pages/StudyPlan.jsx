@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import Header from "../components/Header";
+import api from "../services/api";
 
 function StudyPlan() {
   const [tasks, setTasks] = useState([]);
   const [currentTask, setCurrentTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const apiBase = "http://localhost:5000";
 
   const formatDate = (value) => {
     if (!value) return "";
@@ -48,20 +48,13 @@ function StudyPlan() {
   };
 
   const fetchTasks = async () => {
-    const response = await fetch(`${apiBase}/api/tasks`);
-    if (!response.ok) {
-      throw new Error(`Failed to load tasks: ${response.statusText}`);
-    }
-    const data = await response.json();
+    const { data } = await api.get("/api/tasks");
     setTasks(data);
   };
 
   const fetchCurrentTask = async () => {
-    const response = await fetch(`${apiBase}/api/current-task`);
-    if (!response.ok) {
-      throw new Error(`Failed to load current task: ${response.statusText}`);
-    }
-    const { task } = await response.json();
+    const { data } = await api.get("/api/current-task");
+    const { task } = data;
     setCurrentTask(task);
   };
 
@@ -73,7 +66,12 @@ function StudyPlan() {
       await Promise.all([fetchTasks(), fetchCurrentTask()]);
     } catch (err) {
       console.error("Error refreshing task data:", err);
-      setError(err.message || "Failed to load task data");
+      setError(
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to load task data",
+      );
     } finally {
       setLoading(false);
     }
@@ -85,21 +83,16 @@ function StudyPlan() {
 
   const updateTaskStatus = async (taskId, status) => {
     try {
-      const response = await fetch(`${apiBase}/api/tasks/${taskId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Unable to update task status");
-      }
-
+      await api.patch(`/api/tasks/${taskId}/status`, { status });
       refreshData();
     } catch (err) {
       console.error("Error updating task status:", err);
-      setError(err.message || "Failed to update task status");
+      setError(
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to update task status",
+      );
     }
   };
 
@@ -109,19 +102,16 @@ function StudyPlan() {
     }
 
     try {
-      const response = await fetch(`${apiBase}/api/tasks/${taskId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Unable to delete task");
-      }
-
+      await api.delete(`/api/tasks/${taskId}`);
       refreshData();
     } catch (err) {
       console.error("Error deleting task:", err);
-      setError(err.message || "Failed to delete task");
+      setError(
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to delete task",
+      );
     }
   };
 

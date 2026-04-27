@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import api from '../services/api';
 
 export default function Deadlines() {
   const [deadlines, setDeadlines] = useState([]);
@@ -10,17 +11,11 @@ export default function Deadlines() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('http://localhost:5000/deadlines');
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch deadlines: ${response.statusText}`);
-        }
-
-        const data = await response.json();
+        const { data } = await api.get('/deadlines');
         setDeadlines(data);
       } catch (err) {
         console.error('Error fetching deadlines:', err);
-        setError(err.message || 'Failed to load deadlines');
+        setError(err.response?.data?.error || err.message || 'Failed to load deadlines');
       } finally {
         setLoading(false);
       }

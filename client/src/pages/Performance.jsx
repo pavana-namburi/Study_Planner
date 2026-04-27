@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Header from '../components/Header';
+import api from '../services/api';
 
 function Performance() {
   const [performance, setPerformance] = useState(null);
@@ -11,17 +12,11 @@ function Performance() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('http://localhost:5000/performance');
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch performance: ${response.statusText}`);
-        }
-
-        const data = await response.json();
+        const { data } = await api.get('/performance');
         setPerformance(data);
       } catch (err) {
         console.error('Error fetching performance:', err);
-        setError(err.message || 'Failed to load performance data');
+        setError(err.response?.data?.error || err.message || 'Failed to load performance data');
       } finally {
         setLoading(false);
       }

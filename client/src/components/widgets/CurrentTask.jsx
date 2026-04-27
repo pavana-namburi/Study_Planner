@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import api from "../../services/api";
 
 function CurrentTask() {
   const [task, setTask] = useState(null);
@@ -14,12 +15,7 @@ function CurrentTask() {
       setError("");
 
       try {
-        const response = await fetch("/api/current-task");
-        const payload = await response.json();
-
-        if (!response.ok) {
-          throw new Error(payload?.error || "Unable to fetch current task");
-        }
+        const { data: payload } = await api.get("/api/current-task");
 
         if (active) {
           setTask(payload?.task || null);
@@ -27,7 +23,11 @@ function CurrentTask() {
       } catch (err) {
         if (active) {
           console.error("Current task fetch failed:", err);
-          setError(err?.message || "Failed to load current task");
+          setError(
+            err.response?.data?.error ||
+              err?.message ||
+              "Failed to load current task",
+          );
           setTask(null);
         }
       } finally {

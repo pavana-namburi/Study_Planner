@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import api from "../../services/api";
 
 function AddSubjectModal({ isOpen, onClose }) {
   const [subjectName, setSubjectName] = useState("");
@@ -63,28 +64,14 @@ function AddSubjectModal({ isOpen, onClose }) {
     };
 
     try {
-      const response = await fetch("/api/subjects", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(
-          "Failed to add subject:",
-          errorData.error || response.statusText,
-        );
-        return;
-      }
-
-      const result = await response.json();
+      const { data: result } = await api.post("/api/subjects", payload);
       console.log("Subject added successfully", result);
       onClose();
     } catch (error) {
-      console.error("Error sending subject data:", error);
+      console.error(
+        "Error sending subject data:",
+        error.response?.data?.error || error.message,
+      );
     }
   };
 

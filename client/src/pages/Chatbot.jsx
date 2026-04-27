@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import api from '../services/api';
+import Header from '../components/Header';
 
 const Chatbot = () => {
   const [messages, setMessages] = useState([]);
@@ -66,6 +67,7 @@ const Chatbot = () => {
 
   return (
     <div style={styles.container}>
+      <Header />
       <div style={styles.header}>
         <h1>AI Chatbot</h1>
       </div>
