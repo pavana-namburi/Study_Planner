@@ -4,6 +4,7 @@ const cors = require('cors');
 const Groq = require('groq-sdk');
 const { initializeDatabase } = require('./database');
 const authRoutes = require('./routes/authRoutes');
+const authMiddleware = require('./middleware/authMiddleware');
 
 const groq = process.env.GROQ_API_KEY
   ? new Groq({ apiKey: process.env.GROQ_API_KEY })
@@ -77,7 +78,20 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Server working' });
 });
 
-app.post('/api/subjects', (req, res) => {
+function queryDatabase(connection, sql, params = []) {
+  return new Promise((resolve, reject) => {
+    connection.query(sql, params, (err, results) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve(results);
+    });
+  });
+}
+
+app.post('/api/subjects', authMiddleware, (req, res) => {
   const {
     name,
     difficulty,
@@ -139,8 +153,8 @@ app.post('/api/subjects', (req, res) => {
   }
 
   connection.query(
-    'INSERT INTO subjects (name, difficulty, max_time, priority, `type`, confidence, deadline, priority_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [name.trim(), difficulty.trim(), numericMaxTime, priority.trim(), type.trim(), numericConfidence, deadline, priorityScore],
+    'INSERT INTO subjects (name, difficulty, max_time, priority, `type`, confidence, deadline, priority_score, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [name.trim(), difficulty.trim(), numericMaxTime, priority.trim(), type.trim(), numericConfidence, deadline, priorityScore, req.user.id],
     (err, result) => {
       if (err) {
         console.error('Error inserting subject:', err);
@@ -157,7 +171,7 @@ app.post('/api/subjects', (req, res) => {
   );
 });
 
-app.get('/api/subjects', (req, res) => {
+app.get('/api/subjects', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
@@ -166,7 +180,7 @@ app.get('/api/subjects', (req, res) => {
 
   }
 
-  connection.query('SELECT * FROM subjects ORDER BY deadline ASC', (err, results) => {
+  connection.query('SELECT * FROM subjects WHERE user_id = ? ORDER BY deadline ASC', [req.user.id], (err, results) => {
     if (err) {
       console.error('Error fetching subjects:', err);
 
@@ -181,7 +195,7 @@ app.get('/api/subjects', (req, res) => {
   });
 });
 
-app.get('/api/current-task', (req, res) => {
+app.get('/api/current-task', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
@@ -201,6 +215,8 @@ app.get('/api/current-task', (req, res) => {
     FROM tasks
     JOIN subjects ON tasks.subject_id = subjects.id
     WHERE tasks.status <> 'completed'
+      AND tasks.user_id = ?
+      AND subjects.user_id = ?
     ORDER BY
       CASE subjects.priority
         WHEN 'High' THEN 1
@@ -213,7 +229,7 @@ app.get('/api/current-task', (req, res) => {
     LIMIT 1
   `;
 
-  connection.query(sql, (err, results) => {
+  connection.query(sql, [req.user.id, req.user.id], (err, results) => {
     if (err) {
       console.error('Error fetching current task:', err);
 
@@ -232,7 +248,7 @@ app.get('/api/current-task', (req, res) => {
   });
 });
 
-app.get('/api/tasks', (req, res) => {
+app.get('/api/tasks', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
@@ -253,10 +269,12 @@ app.get('/api/tasks', (req, res) => {
       subjects.type
     FROM tasks
     JOIN subjects ON tasks.subject_id = subjects.id
+    WHERE tasks.user_id = ?
+      AND subjects.user_id = ?
     ORDER BY tasks.task_date ASC, tasks.start_time ASC
   `;
 
-  connection.query(sql, (err, results) => {
+  connection.query(sql, [req.user.id, req.user.id], (err, results) => {
     if (err) {
       console.error('Error fetching tasks:', err);
 
@@ -271,7 +289,7 @@ app.get('/api/tasks', (req, res) => {
   });
 });
 
-app.patch('/api/tasks/:id/status', (req, res) => {
+app.patch('/api/tasks/:id/status', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
@@ -287,8 +305,8 @@ app.patch('/api/tasks/:id/status', (req, res) => {
   }
 
   connection.query(
-    'UPDATE tasks SET status = ? WHERE id = ?',
-    [status, taskId],
+    'UPDATE tasks SET status = ? WHERE id = ? AND user_id = ?',
+    [status, taskId, req.user.id],
     (err, result) => {
       if (err) {
         console.error('Error updating task status:', err);
@@ -309,7 +327,7 @@ app.patch('/api/tasks/:id/status', (req, res) => {
   );
 });
 
-app.delete('/api/tasks/:id', (req, res) => {
+app.delete('/api/tasks/:id', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
@@ -319,8 +337,8 @@ app.delete('/api/tasks/:id', (req, res) => {
   const taskId = Number(req.params.id);
 
   connection.query(
-    'DELETE FROM tasks WHERE id = ?',
-    [taskId],
+    'DELETE FROM tasks WHERE id = ? AND user_id = ?',
+    [taskId, req.user.id],
     (err, result) => {
       if (err) {
         console.error('Error deleting task:', err);
@@ -341,11 +359,15 @@ app.delete('/api/tasks/:id', (req, res) => {
   );
 });
 
-app.get('/study-plan', (req, res) => {
+app.get('/study-plan', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
+  if (!connection) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
   // First, get subjects data
-  connection.query('SELECT id, name, priority_score, max_time, priority, deadline FROM subjects', (err, subjectsResults) => {
+  connection.query('SELECT id, name, priority_score, max_time, priority, deadline FROM subjects WHERE user_id = ?', [req.user.id], (err, subjectsResults) => {
     if (err) {
       console.error('Error fetching subjects for study plan:', err);
 
@@ -493,7 +515,7 @@ app.get('/study-plan', (req, res) => {
   });
 });
 
-app.get('/deadlines', (req, res) => {
+app.get('/deadlines', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
@@ -502,7 +524,7 @@ app.get('/deadlines', (req, res) => {
 
   }
 
-  connection.query('SELECT id, name, deadline FROM subjects', (err, results) => {
+  connection.query('SELECT id, name, deadline FROM subjects WHERE user_id = ?', [req.user.id], (err, results) => {
     if (err) {
       console.error('Error fetching subjects for deadlines:', err);
 
@@ -569,7 +591,7 @@ app.get('/deadlines', (req, res) => {
   });
 });
 
-app.get('/performance', (req, res) => {
+app.get('/performance', authMiddleware, (req, res) => {
   console.log('Performance API called');
 
   const connection = req.app.locals.dbConnection;
@@ -580,7 +602,7 @@ app.get('/performance', (req, res) => {
 
   }
 
-  connection.query('SELECT * FROM tasks', (err, results) => {
+  connection.query('SELECT * FROM tasks WHERE user_id = ?', [req.user.id], (err, results) => {
     if (err) {
       console.error('Error fetching tasks for performance:', err);
 
@@ -635,7 +657,7 @@ app.get('/performance', (req, res) => {
   });
 });
 
-app.post('/chat', async (req, res) => {
+app.post('/chat', authMiddleware, async (req, res) => {
   const { message } = req.body;
 
   if (!message || typeof message !== 'string' || message.trim() === '') {
@@ -650,6 +672,15 @@ app.post('/chat', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Chat service unavailable',
+    });
+  }
+
+  const connection = req.app.locals.dbConnection;
+
+  if (!connection) {
+    return res.status(500).json({
+      success: false,
+      message: 'Database not connected',
     });
   }
 
@@ -680,6 +711,12 @@ app.post('/chat', async (req, res) => {
         message: 'Chat service unavailable',
       });
     }
+
+    await queryDatabase(
+      connection,
+      'INSERT INTO chats (message, response, user_id) VALUES (?, ?, ?)',
+      [message.trim(), reply, req.user.id],
+    );
 
     res.json({
       success: true,

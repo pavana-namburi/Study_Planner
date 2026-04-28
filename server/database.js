@@ -45,6 +45,7 @@ function createTables(connection, callback) {
       confidence INT NOT NULL,
       deadline DATETIME NOT NULL,
       priority_score DECIMAL(6,2) NOT NULL DEFAULT 0,
+      user_id INT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB`;
     logSql(createSubjectsSql);
@@ -109,7 +110,8 @@ function createTables(connection, callback) {
       task_date DATE,
       start_time TIME,
       end_time TIME,
-      status VARCHAR(20) DEFAULT 'pending'
+      status VARCHAR(20) DEFAULT 'pending',
+      user_id INT NULL
     ) ENGINE=InnoDB`;
     logSql(createTasksSql);
     connection.query(createTasksSql, (err) => {
@@ -126,7 +128,8 @@ function createTables(connection, callback) {
       date DATE,
       total_tasks INT,
       completed_tasks INT,
-      efficiency DECIMAL(5,2)
+      efficiency DECIMAL(5,2),
+      user_id INT NULL
     ) ENGINE=InnoDB`;
     logSql(createPerformanceSql);
     connection.query(createPerformanceSql, (err) => {
@@ -142,13 +145,112 @@ function createTables(connection, callback) {
       id INT AUTO_INCREMENT PRIMARY KEY,
       message TEXT,
       response TEXT,
+      user_id INT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB`;
     logSql(createChatsSql);
     connection.query(createChatsSql, (err) => {
       if (err) return callback(err);
       console.log('Table chats ensured');
-      callback(null);
+      ensureUserOwnership();
+    });
+  }
+
+  function ensureUserOwnership() {
+    const ownedTables = ['tasks', 'subjects', 'chats', 'performance'];
+    ensureUserIdColumns([...ownedTables], (err) => {
+      if (err) return callback(err);
+      ensureUserIdIndexes([...ownedTables], (err) => {
+        if (err) return callback(err);
+        ensureUserIdForeignKeys([...ownedTables], callback);
+      });
+    });
+  }
+
+  function ensureUserIdColumns(tables, done) {
+    const table = tables.shift();
+    if (!table) return done(null);
+
+    const checkColumnSql = 'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?';
+    logSql(checkColumnSql, [DB_NAME, table, 'user_id']);
+    connection.query(checkColumnSql, [DB_NAME, table, 'user_id'], (err, results) => {
+      if (err) return done(err);
+
+      if (results && results.length > 0) {
+        console.log(`Column user_id already exists on ${table}`);
+        ensureUserIdColumns(tables, done);
+        return;
+      }
+
+      const alterSql = `ALTER TABLE \`${table}\` ADD COLUMN user_id INT NULL`;
+      console.log(`Adding nullable user_id column to ${table}`);
+      logSql(alterSql);
+      connection.query(alterSql, (err) => {
+        if (err) return done(err);
+        ensureUserIdColumns(tables, done);
+      });
+    });
+  }
+
+  function ensureUserIdIndexes(tables, done) {
+    const table = tables.shift();
+    if (!table) return done(null);
+
+    const indexName = `idx_${table}_user_id`;
+    const checkIndexSql = 'SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?';
+    logSql(checkIndexSql, [DB_NAME, table, indexName]);
+    connection.query(checkIndexSql, [DB_NAME, table, indexName], (err, results) => {
+      if (err) return done(err);
+
+      if (results && results.length > 0) {
+        console.log(`Index ${indexName} already exists`);
+        ensureUserIdIndexes(tables, done);
+        return;
+      }
+
+      const indexSql = `CREATE INDEX \`${indexName}\` ON \`${table}\` (user_id)`;
+      console.log(`Adding index ${indexName}`);
+      logSql(indexSql);
+      connection.query(indexSql, (err) => {
+        if (err) return done(err);
+        ensureUserIdIndexes(tables, done);
+      });
+    });
+  }
+
+  function ensureUserIdForeignKeys(tables, done) {
+    const table = tables.shift();
+    if (!table) return done(null);
+
+    const constraintName = `fk_${table}_user_id`;
+    const checkConstraintSql = `
+      SELECT CONSTRAINT_NAME
+      FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+      WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = ?
+        AND COLUMN_NAME = ?
+        AND REFERENCED_TABLE_NAME = ?
+    `;
+    logSql(checkConstraintSql, [DB_NAME, table, 'user_id', 'users']);
+    connection.query(checkConstraintSql, [DB_NAME, table, 'user_id', 'users'], (err, results) => {
+      if (err) return done(err);
+
+      if (results && results.length > 0) {
+        console.log(`Foreign key for ${table}.user_id already exists`);
+        ensureUserIdForeignKeys(tables, done);
+        return;
+      }
+
+      const fkSql = `ALTER TABLE \`${table}\` ADD CONSTRAINT \`${constraintName}\` FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`;
+      console.log(`Adding foreign key ${constraintName}`);
+      logSql(fkSql);
+      connection.query(fkSql, (err) => {
+        if (err) {
+          console.warn(`Could not add foreign key ${constraintName}:`, err.message);
+        }
+
+        ensureUserIdForeignKeys(tables, done);
+      });
     });
   }
 }
