@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Header from '../components/Header';
-import api from '../services/api';
+import api, { getApiData, getApiErrorMessage } from '../services/api';
 
 function StudyPlanPage() {
   const [plan, setPlan] = useState([]);
@@ -13,10 +13,10 @@ function StudyPlanPage() {
         setLoading(true);
         setError(null);
         const { data } = await api.get('/study-plan');
-        setPlan(data);
+        setPlan(getApiData(data));
       } catch (err) {
         console.error('Error fetching study plan:', err);
-        setError(err.response?.data?.error || err.message || 'Failed to load study plan');
+        setError(getApiErrorMessage(err, 'Failed to load study plan'));
       } finally {
         setLoading(false);
       }

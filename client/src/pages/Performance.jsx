@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Header from '../components/Header';
-import api from '../services/api';
+import api, { getApiData, getApiErrorMessage } from '../services/api';
 
 function Performance() {
   const [performance, setPerformance] = useState(null);
@@ -13,10 +13,10 @@ function Performance() {
         setLoading(true);
         setError(null);
         const { data } = await api.get('/performance');
-        setPerformance(data);
+        setPerformance(getApiData(data));
       } catch (err) {
         console.error('Error fetching performance:', err);
-        setError(err.response?.data?.error || err.message || 'Failed to load performance data');
+        setError(getApiErrorMessage(err, 'Failed to load performance data'));
       } finally {
         setLoading(false);
       }

@@ -31,6 +31,27 @@ export const setUnauthorizedHandler = (handler) => {
   };
 };
 
+export const getApiData = (payload) => {
+  if (payload && typeof payload === 'object' && 'data' in payload) {
+    return payload.data;
+  }
+
+  return payload;
+};
+
+export const getApiErrorMessage = (error, fallback = 'Something went wrong. Please try again.') => {
+  if (!error.response) {
+    return 'Network error. Please check your connection and try again.';
+  }
+
+  return (
+    error.response.data?.message ||
+    error.response.data?.error ||
+    error.message ||
+    fallback
+  );
+};
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -40,8 +61,13 @@ api.interceptors.response.use(
       requestUrl.includes('/api/auth/login') ||
       requestUrl.includes('/api/auth/register');
 
-    if (status === 401 && !isLoginOrRegister && unauthorizedHandler) {
-      unauthorizedHandler();
+    if (status === 401 && !isLoginOrRegister) {
+      localStorage.removeItem(TOKEN_KEY);
+      setAuthToken(null);
+
+      if (unauthorizedHandler) {
+        unauthorizedHandler();
+      }
     }
 
     return Promise.reject(error);
@@ -50,7 +76,7 @@ api.interceptors.response.use(
 
 export const getTest = async () => {
   const response = await api.get('/api/test');
-  return response.data;
+  return getApiData(response.data);
 };
 
 export default api;

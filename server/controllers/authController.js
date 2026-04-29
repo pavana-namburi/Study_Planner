@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { isValidEmail } = require('../utils/validation');
 
 const SALT_ROUNDS = 10;
 const TOKEN_EXPIRES_IN = '7d';
@@ -21,7 +22,7 @@ function getConnection(req, res) {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-    res.status(500).json({ success: false, message: 'Database not connected' });
+    res.fail(500, 'Database not connected');
     return null;
   }
 
@@ -30,10 +31,6 @@ function getConnection(req, res) {
 
 function getJwtSecret() {
   return process.env.JWT_SECRET;
-}
-
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function sanitizeUser(user) {
@@ -45,10 +42,7 @@ function sanitizeUser(user) {
 }
 
 function getMe(req, res) {
-  return res.json({
-    success: true,
-    user: req.user,
-  });
+  return res.success({ user: sanitizeUser(req.user) });
 }
 
 async function register(req, res) {
@@ -60,24 +54,15 @@ async function register(req, res) {
   const password = typeof req.body.password === 'string' ? req.body.password : '';
 
   if (!name || !email || !password) {
-    return res.status(400).json({
-      success: false,
-      message: 'Name, email, and password are required',
-    });
+    return res.fail(400, 'Name, email, and password are required');
   }
 
   if (!isValidEmail(email)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Please provide a valid email address',
-    });
+    return res.fail(400, 'Please provide a valid email address');
   }
 
   if (password.length < 6) {
-    return res.status(400).json({
-      success: false,
-      message: 'Password must be at least 6 characters long',
-    });
+    return res.fail(400, 'Password must be at least 6 characters long');
   }
 
   try {
@@ -88,10 +73,7 @@ async function register(req, res) {
     );
 
     if (existingUsers.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'Email is already registered',
-      });
+      return res.fail(409, 'Email is already registered');
     }
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
@@ -101,29 +83,25 @@ async function register(req, res) {
       [name, email, hashedPassword],
     );
 
-    return res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      user: {
-        id: result.insertId,
-        name,
-        email,
+    return res.success(
+      {
+        message: 'User registered successfully',
+        user: {
+          id: result.insertId,
+          name,
+          email,
+        },
       },
-    });
+      201,
+    );
   } catch (err) {
     console.error('Registration error:', err);
 
     if (err.code === 'ER_DUP_ENTRY') {
-      return res.status(409).json({
-        success: false,
-        message: 'Email is already registered',
-      });
+      return res.fail(409, 'Email is already registered');
     }
 
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to register user',
-    });
+    return res.fail(500, 'Failed to register user');
   }
 }
 
@@ -134,20 +112,22 @@ async function login(req, res) {
   const jwtSecret = getJwtSecret();
   if (!jwtSecret) {
     console.error('JWT_SECRET is not configured');
-    return res.status(500).json({
-      success: false,
-      message: 'Authentication service is not configured',
-    });
+    return res.fail(500, 'Authentication service is not configured');
   }
 
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const password = typeof req.body.password === 'string' ? req.body.password : '';
 
   if (!email || !password) {
-    return res.status(400).json({
-      success: false,
-      message: 'Email and password are required',
-    });
+    return res.fail(400, 'Email and password are required');
+  }
+
+  if (!isValidEmail(email)) {
+    return res.fail(400, 'Please provide a valid email address');
+  }
+
+  if (password.length < 6) {
+    return res.fail(400, 'Password must be at least 6 characters long');
   }
 
   try {
@@ -158,37 +138,27 @@ async function login(req, res) {
     );
 
     if (users.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password',
-      });
+      return res.fail(401, 'Invalid email or password');
     }
 
     const user = users[0];
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password',
-      });
+      return res.fail(401, 'Invalid email or password');
     }
 
     const safeUser = sanitizeUser(user);
     const token = jwt.sign(safeUser, jwtSecret, { expiresIn: TOKEN_EXPIRES_IN });
 
-    return res.json({
-      success: true,
+    return res.success({
       message: 'Login successful',
       token,
       user: safeUser,
     });
   } catch (err) {
     console.error('Login error:', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to login',
-    });
+    return res.fail(500, 'Failed to login');
   }
 }
 

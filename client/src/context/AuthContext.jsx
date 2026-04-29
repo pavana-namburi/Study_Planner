@@ -7,7 +7,11 @@ import {
   useState,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import api, { setAuthToken, setUnauthorizedHandler } from "../services/api";
+import api, {
+  getApiData,
+  setAuthToken,
+  setUnauthorizedHandler,
+} from "../services/api";
 
 const TOKEN_KEY = "studyplanner_token";
 const USER_KEY = "studyplanner_user";
@@ -76,7 +80,7 @@ export function AuthProvider({ children }) {
     }
 
     const response = await api.get("/api/auth/me");
-    const nextUser = response.data.user;
+    const nextUser = getApiData(response.data).user;
 
     localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
     setUser(nextUser);
@@ -102,7 +106,7 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        const nextUser = response.data.user;
+        const nextUser = getApiData(response.data).user;
         localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
         setUser(nextUser);
         setAuthMessage("");

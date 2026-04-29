@@ -4,10 +4,7 @@ function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      success: false,
-      message: 'Authorization token is required',
-    });
+    return res.fail(401, 'Authorization token is required');
   }
 
   const token = authHeader.split(' ')[1];
@@ -15,20 +12,14 @@ function authMiddleware(req, res, next) {
 
   if (!jwtSecret) {
     console.error('JWT_SECRET is not configured');
-    return res.status(500).json({
-      success: false,
-      message: 'Authentication service is not configured',
-    });
+    return res.fail(500, 'Authentication service is not configured');
   }
 
   try {
     req.user = jwt.verify(token, jwtSecret);
     return next();
   } catch (err) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid or expired token',
-    });
+    return res.fail(401, 'Invalid or expired token');
   }
 }
 

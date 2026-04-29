@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import api from "../services/api";
+import api, { getApiErrorMessage } from "../services/api";
 
 const initialForm = {
   name: "",
@@ -13,19 +13,50 @@ function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateField = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
+    setFieldErrors((current) => ({ ...current, [name]: "" }));
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    const email = form.email.trim();
+
+    if (!form.name.trim()) {
+      errors.name = "Name is required";
+    }
+
+    if (!email) {
+      errors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = "Enter a valid email address";
+    }
+
+    if (!form.password) {
+      errors.password = "Password is required";
+    } else if (form.password.length < 6) {
+      errors.password = "Password must be at least 6 characters";
+    }
+
+    if (!form.confirmPassword) {
+      errors.confirmPassword = "Confirm your password";
+    } else if (form.password !== form.confirmPassword) {
+      errors.confirmPassword = "Passwords do not match";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
 
-    if (form.password !== form.confirmPassword) {
-      setError("Passwords do not match");
+    if (!validateForm()) {
       return;
     }
 
@@ -43,11 +74,7 @@ function Register() {
         state: { message: "Account created. You can login now." },
       });
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Unable to create account. Please try again.",
-      );
+      setError(getApiErrorMessage(err, "Unable to create account. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -76,8 +103,12 @@ function Register() {
               value={form.name}
               onChange={updateField}
               autoComplete="name"
+              aria-invalid={Boolean(fieldErrors.name)}
               required
             />
+            {fieldErrors.name && (
+              <span className="field-error">{fieldErrors.name}</span>
+            )}
           </label>
 
           <label className="auth-field">
@@ -88,8 +119,12 @@ function Register() {
               value={form.email}
               onChange={updateField}
               autoComplete="email"
+              aria-invalid={Boolean(fieldErrors.email)}
               required
             />
+            {fieldErrors.email && (
+              <span className="field-error">{fieldErrors.email}</span>
+            )}
           </label>
 
           <label className="auth-field">
@@ -101,8 +136,12 @@ function Register() {
               onChange={updateField}
               autoComplete="new-password"
               minLength={6}
+              aria-invalid={Boolean(fieldErrors.password)}
               required
             />
+            {fieldErrors.password && (
+              <span className="field-error">{fieldErrors.password}</span>
+            )}
           </label>
 
           <label className="auth-field">
@@ -114,12 +153,23 @@ function Register() {
               onChange={updateField}
               autoComplete="new-password"
               minLength={6}
+              aria-invalid={Boolean(fieldErrors.confirmPassword)}
               required
             />
+            {fieldErrors.confirmPassword && (
+              <span className="field-error">{fieldErrors.confirmPassword}</span>
+            )}
           </label>
 
           <button className="auth-submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Creating account..." : "Register"}
+            {isSubmitting ? (
+              <>
+                <span className="button-spinner" />
+                Creating account...
+              </>
+            ) : (
+              "Register"
+            )}
           </button>
 
           <p className="auth-switch">
@@ -132,4 +182,3 @@ function Register() {
 }
 
 export default Register;
-

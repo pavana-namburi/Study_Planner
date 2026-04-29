@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import api from "../../services/api";
+import api, { getApiData, getApiErrorMessage } from "../../services/api";
 
 function CurrentTask() {
   const [task, setTask] = useState(null);
@@ -18,16 +18,12 @@ function CurrentTask() {
         const { data: payload } = await api.get("/api/current-task");
 
         if (active) {
-          setTask(payload?.task || null);
+          setTask(getApiData(payload)?.task || null);
         }
       } catch (err) {
         if (active) {
           console.error("Current task fetch failed:", err);
-          setError(
-            err.response?.data?.error ||
-              err?.message ||
-              "Failed to load current task",
-          );
+          setError(getApiErrorMessage(err, "Failed to load current task"));
           setTask(null);
         }
       } finally {

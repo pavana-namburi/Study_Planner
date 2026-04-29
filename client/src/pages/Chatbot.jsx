@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import api from '../services/api';
+import api, { getApiData, getApiErrorMessage } from '../services/api';
 import Header from '../components/Header';
 
 const Chatbot = () => {
@@ -29,9 +29,9 @@ const Chatbot = () => {
 
     try {
       const response = await api.post('/chat', { message: userMessage.text });
-      const data = response.data;
+      const data = getApiData(response.data);
 
-      if (data.success && data.reply) {
+      if (data.reply) {
         // Replace typing with actual reply
         setMessages(prev => {
           const newMessages = [...prev];
@@ -48,7 +48,7 @@ const Chatbot = () => {
       }
     } catch (error) {
       console.error('Error calling chat API:', error);
-      const errorMessage = error.response?.data?.message || 'Sorry, something went wrong. Please try again.';
+      const errorMessage = getApiErrorMessage(error, 'Sorry, something went wrong. Please try again.');
       setMessages(prev => {
         const newMessages = [...prev];
         newMessages[newMessages.length - 1] = { text: errorMessage, sender: 'bot' };

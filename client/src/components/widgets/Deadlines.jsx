@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import api from '../../services/api';
+import api, { getApiData, getApiErrorMessage } from '../../services/api';
 
 function Deadlines() {
   const [deadlines, setDeadlines] = useState([]);
@@ -12,10 +12,10 @@ function Deadlines() {
         setLoading(true);
         setError(null);
         const { data } = await api.get('/deadlines');
-        setDeadlines(data);
+        setDeadlines(getApiData(data));
       } catch (err) {
         console.error('Error fetching deadlines:', err);
-        setError(err.response?.data?.error || err.message || 'Failed to load deadlines');
+        setError(getApiErrorMessage(err, 'Failed to load deadlines'));
       } finally {
         setLoading(false);
       }

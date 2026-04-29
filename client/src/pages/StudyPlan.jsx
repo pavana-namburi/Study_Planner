@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Header from "../components/Header";
-import api from "../services/api";
+import api, { getApiData, getApiErrorMessage } from "../services/api";
 
 function StudyPlan() {
   const [tasks, setTasks] = useState([]);
@@ -49,12 +49,12 @@ function StudyPlan() {
 
   const fetchTasks = async () => {
     const { data } = await api.get("/api/tasks");
-    setTasks(data);
+    setTasks(getApiData(data));
   };
 
   const fetchCurrentTask = async () => {
     const { data } = await api.get("/api/current-task");
-    const { task } = data;
+    const { task } = getApiData(data);
     setCurrentTask(task);
   };
 
@@ -66,12 +66,7 @@ function StudyPlan() {
       await Promise.all([fetchTasks(), fetchCurrentTask()]);
     } catch (err) {
       console.error("Error refreshing task data:", err);
-      setError(
-        err.response?.data?.error ||
-          err.response?.data?.message ||
-          err.message ||
-          "Failed to load task data",
-      );
+      setError(getApiErrorMessage(err, "Failed to load task data"));
     } finally {
       setLoading(false);
     }
@@ -87,12 +82,7 @@ function StudyPlan() {
       refreshData();
     } catch (err) {
       console.error("Error updating task status:", err);
-      setError(
-        err.response?.data?.error ||
-          err.response?.data?.message ||
-          err.message ||
-          "Failed to update task status",
-      );
+      setError(getApiErrorMessage(err, "Failed to update task status"));
     }
   };
 
@@ -106,12 +96,7 @@ function StudyPlan() {
       refreshData();
     } catch (err) {
       console.error("Error deleting task:", err);
-      setError(
-        err.response?.data?.error ||
-          err.response?.data?.message ||
-          err.message ||
-          "Failed to delete task",
-      );
+      setError(getApiErrorMessage(err, "Failed to delete task"));
     }
   };
 
@@ -238,7 +223,7 @@ function StudyPlan() {
                     {currentTask.subject}
                   </p>
                   <p style={{ margin: 0, color: "#64748b" }}>
-                    {formatDate(currentTask.task_date)} ·{" "}
+                    {formatDate(currentTask.task_date)} -{" "}
                     {formatTime(currentTask.start_time)} -{" "}
                     {formatTime(currentTask.end_time)}
                   </p>
@@ -315,7 +300,7 @@ function StudyPlan() {
                             fontSize: "0.95rem",
                           }}
                         >
-                          {formatDate(task.task_date)} ·{" "}
+                          {formatDate(task.task_date)} -{" "}
                           {formatTime(task.start_time)} -{" "}
                           {formatTime(task.end_time)}
                         </p>
@@ -326,7 +311,7 @@ function StudyPlan() {
                             fontSize: "0.95rem",
                           }}
                         >
-                          Priority {task.priority} · {task.difficulty}
+                          Priority {task.priority} - {task.difficulty}
                         </p>
                       </div>
                       <span style={getBadgeStyle(task.status)}>

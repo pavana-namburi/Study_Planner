@@ -5,6 +5,8 @@ const Groq = require('groq-sdk');
 const { initializeDatabase } = require('./database');
 const authRoutes = require('./routes/authRoutes');
 const authMiddleware = require('./middleware/authMiddleware');
+const apiResponse = require('./middleware/apiResponse');
+const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 const groq = process.env.GROQ_API_KEY
   ? new Groq({ apiKey: process.env.GROQ_API_KEY })
@@ -72,10 +74,11 @@ app.use(
   }),
 );
 app.use(express.json());
+app.use(apiResponse);
 app.use('/api/auth', authRoutes);
 
 app.get('/api/test', (req, res) => {
-  res.json({ message: 'Server working' });
+  res.success({ message: 'Server working' });
 });
 
 function queryDatabase(connection, sql, params = []) {
@@ -126,18 +129,15 @@ app.post('/api/subjects', authMiddleware, (req, res) => {
   if (confidence === undefined || Number.isNaN(numericConfidence)) missingFields.push('confidence');
 
   if (missingFields.length > 0) {
-    return res.status(400).json({
-      error: 'Missing or invalid required fields',
-      fields: missingFields,
-    });
+    return res.fail(400, `Missing or invalid required fields: ${missingFields.join(', ')}`);
   }
 
   if (numericMaxTime < 0) {
-    return res.status(400).json({ error: 'max_time must be a non-negative number' });
+    return res.fail(400, 'max_time must be a non-negative number');
   }
 
   if (numericConfidence < 0 || numericConfidence > 5) {
-    return res.status(400).json({ error: 'confidence must be a number between 0 and 5' });
+    return res.fail(400, 'confidence must be a number between 0 and 5');
   }
 
   const difficultyWeight = difficultyWeights[difficulty.trim()] ?? difficultyWeights.Medium;
@@ -147,9 +147,7 @@ app.post('/api/subjects', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-
-    return res.status(500).json({ error: 'Database not connected' });
-
+    return res.fail(500, 'Database not connected');
   }
 
   connection.query(
@@ -160,13 +158,13 @@ app.post('/api/subjects', authMiddleware, (req, res) => {
         console.error('Error inserting subject:', err);
 
         if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
-          return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+          return res.fail(500, 'Database connection lost. Please try again later.');
         }
 
-        return res.status(500).json({ error: 'Failed to add subject to database' });
+        return res.fail(500, 'Failed to add subject to database');
       }
 
-      res.status(201).json({ success: true, id: result.insertId });
+      res.success({ id: result.insertId }, 201);
     }
   );
 });
@@ -175,9 +173,7 @@ app.get('/api/subjects', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-
-    return res.status(500).json({ error: 'Database not connected' });
-
+    return res.fail(500, 'Database not connected');
   }
 
   connection.query('SELECT * FROM subjects WHERE user_id = ? ORDER BY deadline ASC', [req.user.id], (err, results) => {
@@ -185,13 +181,13 @@ app.get('/api/subjects', authMiddleware, (req, res) => {
       console.error('Error fetching subjects:', err);
 
       if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
-        return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+        return res.fail(500, 'Database connection lost. Please try again later.');
       }
 
-      return res.status(500).json({ error: 'Failed to retrieve subjects from database' });
+      return res.fail(500, 'Failed to retrieve subjects from database');
     }
 
-    res.json(results);
+    res.success(results);
   });
 });
 
@@ -199,7 +195,7 @@ app.get('/api/current-task', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-    return res.status(500).json({ error: 'Database not connected' });
+    return res.fail(500, 'Database not connected');
   }
 
   const sql = `
@@ -234,17 +230,17 @@ app.get('/api/current-task', authMiddleware, (req, res) => {
       console.error('Error fetching current task:', err);
 
       if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
-        return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+        return res.fail(500, 'Database connection lost. Please try again later.');
       }
 
-      return res.status(500).json({ error: 'Failed to retrieve current task from database' });
+      return res.fail(500, 'Failed to retrieve current task from database');
     }
 
     if (!results || results.length === 0) {
-      return res.json({ task: null });
+      return res.success({ task: null });
     }
 
-    res.json({ task: results[0] });
+    res.success({ task: results[0] });
   });
 });
 
@@ -252,7 +248,7 @@ app.get('/api/tasks', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-    return res.status(500).json({ error: 'Database not connected' });
+    return res.fail(500, 'Database not connected');
   }
 
   const sql = `
@@ -279,13 +275,13 @@ app.get('/api/tasks', authMiddleware, (req, res) => {
       console.error('Error fetching tasks:', err);
 
       if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
-        return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+        return res.fail(500, 'Database connection lost. Please try again later.');
       }
 
-      return res.status(500).json({ error: 'Failed to retrieve tasks from database' });
+      return res.fail(500, 'Failed to retrieve tasks from database');
     }
 
-    res.json(results);
+    res.success(results);
   });
 });
 
@@ -293,15 +289,19 @@ app.patch('/api/tasks/:id/status', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-    return res.status(500).json({ error: 'Database not connected' });
+    return res.fail(500, 'Database not connected');
   }
 
   const taskId = Number(req.params.id);
   const { status } = req.body;
   const allowedStatuses = ['pending', 'completed', 'skipped', 'missed'];
 
+  if (!Number.isInteger(taskId) || taskId <= 0) {
+    return res.fail(400, 'Invalid task id');
+  }
+
   if (!status || typeof status !== 'string' || !allowedStatuses.includes(status)) {
-    return res.status(400).json({ error: 'Invalid task status' });
+    return res.fail(400, 'Invalid task status');
   }
 
   connection.query(
@@ -312,17 +312,17 @@ app.patch('/api/tasks/:id/status', authMiddleware, (req, res) => {
         console.error('Error updating task status:', err);
 
         if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
-          return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+          return res.fail(500, 'Database connection lost. Please try again later.');
         }
 
-        return res.status(500).json({ error: 'Failed to update task status' });
+        return res.fail(500, 'Failed to update task status');
       }
 
       if (result.affectedRows === 0) {
-        return res.status(404).json({ error: 'Task not found' });
+        return res.fail(404, 'Task not found');
       }
 
-      res.json({ success: true, id: taskId, status });
+      res.success({ id: taskId, status });
     }
   );
 });
@@ -331,10 +331,14 @@ app.delete('/api/tasks/:id', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-    return res.status(500).json({ error: 'Database not connected' });
+    return res.fail(500, 'Database not connected');
   }
 
   const taskId = Number(req.params.id);
+
+  if (!Number.isInteger(taskId) || taskId <= 0) {
+    return res.fail(400, 'Invalid task id');
+  }
 
   connection.query(
     'DELETE FROM tasks WHERE id = ? AND user_id = ?',
@@ -344,17 +348,17 @@ app.delete('/api/tasks/:id', authMiddleware, (req, res) => {
         console.error('Error deleting task:', err);
 
         if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
-          return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+          return res.fail(500, 'Database connection lost. Please try again later.');
         }
 
-        return res.status(500).json({ error: 'Failed to delete task' });
+        return res.fail(500, 'Failed to delete task');
       }
 
       if (result.affectedRows === 0) {
-        return res.status(404).json({ error: 'Task not found' });
+        return res.fail(404, 'Task not found');
       }
 
-      res.json({ success: true, id: taskId });
+      res.success({ id: taskId });
     }
   );
 });
@@ -363,7 +367,7 @@ app.get('/study-plan', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-    return res.status(500).json({ error: 'Database not connected' });
+    return res.fail(500, 'Database not connected');
   }
 
   // First, get subjects data
@@ -372,15 +376,15 @@ app.get('/study-plan', authMiddleware, (req, res) => {
       console.error('Error fetching subjects for study plan:', err);
 
       if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
-        return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+        return res.fail(500, 'Database connection lost. Please try again later.');
       }
 
-      return res.status(500).json({ error: 'Failed to retrieve subjects from database' });
+      return res.fail(500, 'Failed to retrieve subjects from database');
     }
 
     // Handle empty subjects
     if (!subjectsResults || subjectsResults.length === 0) {
-      return res.json([]);
+      return res.success([]);
     }
 
     const now = new Date();
@@ -414,7 +418,7 @@ app.get('/study-plan', authMiddleware, (req, res) => {
 
     // If no valid subjects after filtering
     if (subjects.length === 0) {
-      return res.json([]);
+      return res.success([]);
     }
 
     // Sort subjects by priority_score DESC (highest first)
@@ -511,7 +515,7 @@ app.get('/study-plan', authMiddleware, (req, res) => {
       if (currentTimeInMinutes - START_HOUR * 60 >= TOTAL_MINUTES) break;
     }
 
-    res.json(plan);
+    res.success(plan);
   });
 });
 
@@ -519,9 +523,7 @@ app.get('/deadlines', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-
-    return res.status(500).json({ error: 'Database not connected' });
-
+    return res.fail(500, 'Database not connected');
   }
 
   connection.query('SELECT id, name, deadline FROM subjects WHERE user_id = ?', [req.user.id], (err, results) => {
@@ -529,15 +531,15 @@ app.get('/deadlines', authMiddleware, (req, res) => {
       console.error('Error fetching subjects for deadlines:', err);
 
       if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
-        return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+        return res.fail(500, 'Database connection lost. Please try again later.');
       }
 
-      return res.status(500).json({ error: 'Failed to retrieve subjects from database' });
+      return res.fail(500, 'Failed to retrieve subjects from database');
     }
 
     // Handle empty subjects
     if (!results || results.length === 0) {
-      return res.json([]);
+      return res.success([]);
     }
 
     const now = new Date();
@@ -587,7 +589,7 @@ app.get('/deadlines', authMiddleware, (req, res) => {
       return dateA.getTime() - dateB.getTime();
     });
 
-    res.json(deadlines);
+    res.success(deadlines);
   });
 });
 
@@ -597,9 +599,7 @@ app.get('/performance', authMiddleware, (req, res) => {
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-
-    return res.status(500).json({ error: 'Database not connected' });
-
+    return res.fail(500, 'Database not connected');
   }
 
   connection.query('SELECT * FROM tasks WHERE user_id = ?', [req.user.id], (err, results) => {
@@ -607,15 +607,15 @@ app.get('/performance', authMiddleware, (req, res) => {
       console.error('Error fetching tasks for performance:', err);
 
       if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
-        return res.status(500).json({ error: 'Database connection lost. Please try again later.' });
+        return res.fail(500, 'Database connection lost. Please try again later.');
       }
 
-      return res.status(500).json({ error: 'Failed to retrieve tasks from database' });
+      return res.fail(500, 'Failed to retrieve tasks from database');
     }
 
     // Handle empty tasks
     if (!results || results.length === 0) {
-      return res.json({
+      return res.success({
         totalTasks: 0,
         completedTasks: 0,
         missedTasks: 0,
@@ -646,7 +646,7 @@ app.get('/performance', authMiddleware, (req, res) => {
       insight = 'Low productivity. Focus on completing tasks.';
     }
 
-    res.json({
+    res.success({
       totalTasks: totalTasks,
       completedTasks: completedTasks,
       missedTasks: missedTasks,
@@ -661,27 +661,18 @@ app.post('/chat', authMiddleware, async (req, res) => {
   const { message } = req.body;
 
   if (!message || typeof message !== 'string' || message.trim() === '') {
-    return res.status(400).json({
-      success: false,
-      message: 'Message is required and must be a non-empty string',
-    });
+    return res.fail(400, 'Message is required and must be a non-empty string');
   }
 
   if (!groq) {
     console.error('Chat service unavailable: GROQ_API_KEY is not configured');
-    return res.status(500).json({
-      success: false,
-      message: 'Chat service unavailable',
-    });
+    return res.fail(500, 'Chat service unavailable');
   }
 
   const connection = req.app.locals.dbConnection;
 
   if (!connection) {
-    return res.status(500).json({
-      success: false,
-      message: 'Database not connected',
-    });
+    return res.fail(500, 'Database not connected');
   }
 
   try {
@@ -706,10 +697,7 @@ app.post('/chat', authMiddleware, async (req, res) => {
 
     if (!reply) {
       console.error('Chat service returned an empty response');
-      return res.status(500).json({
-        success: false,
-        message: 'Chat service unavailable',
-      });
+      return res.fail(500, 'Chat service unavailable');
     }
 
     await queryDatabase(
@@ -718,18 +706,15 @@ app.post('/chat', authMiddleware, async (req, res) => {
       [message.trim(), reply, req.user.id],
     );
 
-    res.json({
-      success: true,
-      reply,
-    });
+    res.success({ reply });
   } catch (error) {
     console.error('Groq chat error:', error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Chat service unavailable',
-    });
+    res.fail(500, 'Chat service unavailable');
   }
 });
+
+app.use(notFound);
+app.use(errorHandler);
 
 function startServer() {
   initializeDatabase((err, connection) => {

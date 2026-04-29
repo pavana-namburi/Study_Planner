@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "../../services/api";
+import api, { getApiErrorMessage } from "../../services/api";
 
 function AddSubjectModal({ isOpen, onClose }) {
   const [subjectName, setSubjectName] = useState("");
@@ -10,6 +10,8 @@ function AddSubjectModal({ isOpen, onClose }) {
   const [priority, setPriority] = useState("Medium");
   const [type, setType] = useState("Exam");
   const [confidence, setConfidence] = useState(3);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -34,6 +36,8 @@ function AddSubjectModal({ isOpen, onClose }) {
       setPriority("Medium");
       setType("Exam");
       setConfidence(3);
+      setError("");
+      setIsSubmitting(false);
     }
   }, [isOpen]);
 
@@ -44,9 +48,15 @@ function AddSubjectModal({ isOpen, onClose }) {
   const handleAddSubject = async (event) => {
     event.preventDefault();
 
-    // Validate that both date and time are provided
+    setError("");
+
+    if (!subjectName.trim()) {
+      setError("Subject name is required.");
+      return;
+    }
+
     if (!deadlineDate || !deadlineTime) {
-      alert("Please provide both deadline date and time.");
+      setError("Please provide both deadline date and time.");
       return;
     }
 
@@ -64,14 +74,17 @@ function AddSubjectModal({ isOpen, onClose }) {
     };
 
     try {
-      const { data: result } = await api.post("/api/subjects", payload);
-      console.log("Subject added successfully", result);
+      setIsSubmitting(true);
+      await api.post("/api/subjects", payload);
       onClose();
     } catch (error) {
       console.error(
         "Error sending subject data:",
-        error.response?.data?.error || error.message,
+        error.response?.data?.message || error.message,
       );
+      setError(getApiErrorMessage(error, "Failed to save subject."));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -102,6 +115,7 @@ function AddSubjectModal({ isOpen, onClose }) {
         </div>
 
         <form className="modal-form" onSubmit={handleAddSubject}>
+          {error && <div className="form-error">{error}</div>}
           <div className="modal-grid">
             <div className="form-field">
               <label htmlFor="subject-name" className="form-label">
@@ -240,11 +254,19 @@ function AddSubjectModal({ isOpen, onClose }) {
               type="button"
               className="button-secondary"
               onClick={onClose}
+              disabled={isSubmitting}
             >
               Cancel
             </button>
-            <button type="submit" className="button-primary">
-              Save Subject
+            <button type="submit" className="button-primary" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <span className="button-spinner" />
+                  Saving...
+                </>
+              ) : (
+                "Save Subject"
+              )}
             </button>
           </div>
         </form>
