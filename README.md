@@ -16,50 +16,36 @@ The platform combines planning tools with AI support to create a practical every
 
 ## ✨ Key Features
 
-### 📊 Dashboard
-- Clean overview of tasks, priorities, and upcoming work
-- Quick access to important actions
-- Central productivity hub
+### 🔐 Authentication & Security
+- JWT-based login & registration
+- Protected routes (frontend + backend)
+- Secure password hashing using bcrypt
+- Auto logout on invalid/expired token
 
-### 📚 Subject Management
-- Add and manage subjects
-- Organize workload clearly
-- Prioritize based on deadlines and difficulty
+### 👤 Multi-User System
+- Each user has isolated data
+- Tasks, subjects, chats, and performance are user-specific
+- Ownership-based CRUD protection
 
-### 🧠 Smart Study Plan Generator
-- Automatically generates structured study schedules
-- Helps allocate study time efficiently
-- Reduces decision fatigue
+### 📚 Study Management
+- Add subjects with priority, difficulty, and deadlines
+- Generate and manage daily study tasks
+- Track task status (pending/completed)
 
-### ⏰ Deadlines Tracker
-- Monitor upcoming submission dates
-- Identify missed / pending deadlines
-- Stay ahead of academic pressure
+### 📊 Performance Tracking
+- Monitor study efficiency
+- Track completed vs pending tasks
+- Analyze productivity trends
 
-### 📈 Performance Analytics
-- View task completion stats
-- Productivity insights
-- Efficiency tracking
+### 🤖 AI Chatbot
+- AI-powered study assistance
+- User-specific chat history
+- Helps with planning and doubts
 
-### 🤖 AI Chatbot Assistant
-Powered by Groq API.
-
-Can help with:
-- Study planning
-- Topic explanations
-- Productivity guidance
-- Revision help
-- Motivation support
-
-### ✅ Task Status Management
-- Mark tasks completed
-- Track pending work
-- Improve accountability
-
-### 🎨 Responsive Interface
-- Smooth user experience
-- Clean and modern UI
-- Optimized for usability
+### 🎯 UX Improvements
+- Loading states and error handling
+- Form validation (frontend + backend)
+- Clean responsive UI
 
 ---
 
@@ -84,6 +70,16 @@ Can help with:
 - Git
 - GitHub
 - VS Code
+
+---
+## 🧠 Architecture Highlights
+
+- JWT-based authentication system
+- Middleware-driven route protection
+- User-based data isolation using `user_id`
+- Secure API design with ownership validation
+- Centralized error handling
+- Standardized API response format
 
 ---
 
@@ -137,7 +133,24 @@ GROQ_API_KEY=your_api_key
 ```
 
 ---
+## 🔌 API Overview
 
+### Auth Routes
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+
+### Protected Routes
+- `/api/tasks`
+- `/api/subjects`
+- `/api/performance`
+- `/api/chat`
+
+All protected routes require:
+
+Authorization: Bearer `<token>`
+
+---
 
 ## 🎯 Why This Project?
 
@@ -146,11 +159,18 @@ Many students struggle with consistency, time management, and scattered academic
 This project was built to simplify student productivity by combining planning systems with AI assistance in a single platform.
 
 ---
+## 💡 What This Project Demonstrates
+
+- Full-stack application development
+- Authentication & authorization systems
+- Multi-user data handling
+- Clean API architecture
+- Real-world problem solving
+
+---
 
 ## 🔮 Future Improvements
 
-- User Authentication (currently working on this)
-- Personalized User Profiles
 - Chat History
 - Reminder Notifications
 - Dark Mode
