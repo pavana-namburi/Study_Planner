@@ -133,6 +133,7 @@ const styles = {
     padding: '10px 15px',
     borderRadius: '20px',
     wordWrap: 'break-word',
+    whiteSpace: 'pre-wrap',
   },
   userMessage: {
     alignSelf: 'flex-end',

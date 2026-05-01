@@ -94,6 +94,91 @@ function queryDatabase(connection, sql, params = []) {
   });
 }
 
+const CHAT_SYSTEM_PROMPT = `
+You are an AI study assistant inside an AI Study Planner app.
+
+Response rules:
+- Use short bullets, numbered steps, or compact sections.
+- Avoid long paragraphs; keep each point easy to scan.
+- Give practical, actionable study advice.
+- Explain concepts simply when the user asks for help understanding something.
+- Use clean markdown that can be rendered as plain text in the UI.
+- Stay concise, supportive, and focused on studying, planning, revision, motivation, and time management.
+`.trim();
+
+function formatDateForContext(value) {
+  if (!value) return 'No deadline';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDynamicContext(subjects) {
+  if (!subjects || subjects.length === 0) {
+    return 'No saved subjects or deadlines are available for this user yet.';
+  }
+
+  const subjectLines = subjects.map((subject) => {
+    const details = [
+      `difficulty: ${subject.difficulty || 'unknown'}`,
+      `priority: ${subject.priority || 'unknown'}`,
+      `deadline: ${formatDateForContext(subject.deadline)}`,
+    ];
+
+    if (subject.max_time !== null && subject.max_time !== undefined) {
+      details.push(`planned hours: ${subject.max_time}`);
+    }
+
+    return `- ${subject.name}: ${details.join(', ')}`;
+  });
+
+  return [
+    'Use this saved study context only when it helps answer the user:',
+    ...subjectLines,
+  ].join('\n');
+}
+
+async function getChatContext(connection, userId) {
+  const subjects = await queryDatabase(
+    connection,
+    `
+      SELECT name, difficulty, priority, deadline, max_time
+      FROM subjects
+      WHERE user_id = ?
+      ORDER BY deadline ASC
+      LIMIT 8
+    `,
+    [userId],
+  );
+
+  return formatDynamicContext(subjects);
+}
+
+function buildChatMessages(userMessage, dynamicContext) {
+  return [
+    {
+      role: 'system',
+      content: CHAT_SYSTEM_PROMPT,
+    },
+    {
+      role: 'system',
+      content: dynamicContext,
+    },
+    {
+      role: 'user',
+      content: userMessage,
+    },
+  ];
+}
+
+function cleanChatReply(reply) {
+  return reply
+    .trim()
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 app.post('/api/subjects', authMiddleware, (req, res) => {
   const {
     name,
@@ -659,8 +744,9 @@ app.get('/performance', authMiddleware, (req, res) => {
 
 app.post('/chat', authMiddleware, async (req, res) => {
   const { message } = req.body;
+  const trimmedMessage = typeof message === 'string' ? message.trim() : '';
 
-  if (!message || typeof message !== 'string' || message.trim() === '') {
+  if (!trimmedMessage) {
     return res.fail(400, 'Message is required and must be a non-empty string');
   }
 
@@ -676,24 +762,17 @@ app.post('/chat', authMiddleware, async (req, res) => {
   }
 
   try {
+    const dynamicContext = await getChatContext(connection, req.user.id);
+
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are a helpful AI study assistant inside a Study Planner app. Help with productivity, study plans, motivation, topic explanations, revision, and time management.',
-        },
-        {
-          role: 'user',
-          content: message.trim(),
-        },
-      ],
+      messages: buildChatMessages(trimmedMessage, dynamicContext),
       temperature: 0.7,
       max_tokens: 700,
     });
 
-    const reply = completion.choices?.[0]?.message?.content?.trim();
+    const rawReply = completion.choices?.[0]?.message?.content;
+    const reply = rawReply ? cleanChatReply(rawReply) : '';
 
     if (!reply) {
       console.error('Chat service returned an empty response');
@@ -703,7 +782,7 @@ app.post('/chat', authMiddleware, async (req, res) => {
     await queryDatabase(
       connection,
       'INSERT INTO chats (message, response, user_id) VALUES (?, ?, ?)',
-      [message.trim(), reply, req.user.id],
+      [trimmedMessage, reply, req.user.id],
     );
 
     res.success({ reply });
