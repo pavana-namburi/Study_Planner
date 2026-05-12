@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import api, { getApiData, getApiErrorMessage } from '../services/api';
 import Header from '../components/Header';
+import ChatMessage from '../components/ChatMessage';
 
 const Chatbot = () => {
   const [messages, setMessages] = useState([]);
@@ -19,41 +20,25 @@ const Chatbot = () => {
   const handleSend = async () => {
     if (!input.trim()) return;
 
-    const userMessage = { text: input, sender: 'user' };
+    const userMessage = { text: input.trim(), sender: 'user' };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
 
-    // Add typing indicator
-    setMessages(prev => [...prev, { text: 'Typing...', sender: 'bot' }]);
-
     try {
       const response = await api.post('/chat', { message: userMessage.text });
-      const data = getApiData(response.data);
+      const data = getApiData(response.data) || {};
+      const replyText = typeof data.reply === 'string' ? data.reply : '';
+      const fallbackText = typeof data.message === 'string' ? data.message : '';
 
-      if (data.reply) {
-        // Replace typing with actual reply
-        setMessages(prev => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { text: data.reply, sender: 'bot' };
-          return newMessages;
-        });
-      } else {
-        // Handle error
-        setMessages(prev => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { text: data.message || 'Chat service unavailable', sender: 'bot' };
-          return newMessages;
-        });
-      }
+      setMessages(prev => [
+        ...prev,
+        { text: replyText || fallbackText || 'Chat service unavailable', sender: 'ai' },
+      ]);
     } catch (error) {
       console.error('Error calling chat API:', error);
       const errorMessage = getApiErrorMessage(error, 'Sorry, something went wrong. Please try again.');
-      setMessages(prev => {
-        const newMessages = [...prev];
-        newMessages[newMessages.length - 1] = { text: errorMessage, sender: 'bot' };
-        return newMessages;
-      });
+      setMessages(prev => [...prev, { text: errorMessage, sender: 'ai' }]);
     } finally {
       setLoading(false);
     }
@@ -73,16 +58,20 @@ const Chatbot = () => {
       </div>
       <div style={styles.messagesContainer}>
         {messages.map((msg, index) => (
-          <div
+          <ChatMessage
             key={index}
+            message={msg}
             style={{
               ...styles.message,
-              ...(msg.sender === 'user' ? styles.userMessage : styles.botMessage),
+              ...(msg?.sender === 'user' ? styles.userMessage : styles.botMessage),
             }}
-          >
-            {msg.text}
-          </div>
+          />
         ))}
+        {loading && (
+          <div style={{ ...styles.message, ...styles.botMessage, ...styles.loadingMessage }}>
+            Typing...
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
       <div style={styles.inputContainer}>
@@ -133,17 +122,22 @@ const styles = {
     padding: '10px 15px',
     borderRadius: '20px',
     wordWrap: 'break-word',
-    whiteSpace: 'pre-wrap',
   },
   userMessage: {
     alignSelf: 'flex-end',
     backgroundColor: '#007bff',
     color: 'white',
+    whiteSpace: 'pre-wrap',
   },
   botMessage: {
     alignSelf: 'flex-start',
     backgroundColor: '#e9ecef',
     color: 'black',
+    whiteSpace: 'normal',
+  },
+  loadingMessage: {
+    color: '#6b7280',
+    fontStyle: 'italic',
   },
   inputContainer: {
     display: 'flex',

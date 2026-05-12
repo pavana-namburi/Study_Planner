@@ -313,6 +313,43 @@ p, span, div, button {
   color: #6B7280;
 }
 
+.chat-message {
+  line-height: 1.6;
+}
+
+.chat-message-ai > *:first-child {
+  margin-top: 0;
+}
+
+.chat-message-ai > *:last-child {
+  margin-bottom: 0;
+}
+
+.chat-message-ai p {
+  margin: 0 0 0.75rem;
+  line-height: 1.6;
+}
+
+.chat-message-ai ul,
+.chat-message-ai ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.chat-message-ai li {
+  margin: 0.25rem 0;
+}
+
+.chat-message-ai h1,
+.chat-message-ai h2,
+.chat-message-ai h3,
+.chat-message-ai h4,
+.chat-message-ai h5,
+.chat-message-ai h6 {
+  margin: 0.75rem 0 0.4rem;
+  line-height: 1.35;
+}
+
 /* Feature Grid Styles */
 .feature-grid {
   display: grid;
